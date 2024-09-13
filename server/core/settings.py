@@ -207,3 +207,7 @@ REST_FRAMEWORK = {
 }
 
 AUTH_USER_MODEL = 'user.User'
+
+WEB3_INFURA_PROJECT_ID = "051180c5d6d1405c980975691eae4fb4"
+WEB3_INFURA_API_SECRET = "your_infura_api_secret"
+WEB3_INFURA_URL = "https://holesky.infura.io/v3/051180c5d6d1405c980975691eae4fb4"

@@ -4,8 +4,7 @@ from django.middleware import csrf
 from rest_framework import exceptions as rest_exceptions, response, decorators as rest_decorators, permissions as rest_permissions
 from rest_framework_simplejwt import tokens, views as jwt_views, serializers as jwt_serializers, exceptions as jwt_exceptions
 from user import serializers, models
-
-
+from .utils import get_web3
 def get_user_tokens(user):
     refresh = tokens.RefreshToken.for_user(user)
     return {
@@ -58,13 +57,17 @@ def loginView(request):
 def registerView(request):
     serializer = serializers.RegistrationSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+    
+    # Validate Ethereum wallet address
+    ethereum_wallet_address = serializer.validated_data.get("ethereum_wallet_address")
+    if not serializer.validate_ethereum_wallet_address(ethereum_wallet_address):
+        return response.Response({"message": "Invalid Ethereum wallet address"}, status=400)
 
     user = serializer.save()
-
-    if user is not None:
-        return response.Response("Registered!")
-    return rest_exceptions.AuthenticationFailed("Invalid credentials!")
-
+    if user:
+        return response.Response({"message": "User registered successfully"}, status=201)
+    
+    return response.Response({"error": "Registration failed"}, status=400)
 
 @rest_decorators.api_view(['POST'])
 @rest_decorators.permission_classes([rest_permissions.IsAuthenticated])
@@ -128,3 +131,25 @@ def user(request):
 
     serializer = serializers.UserSerializer(user)
     return response.Response(serializer.data)
+
+@rest_decorators.api_view(["GET"])
+@rest_decorators.permission_classes([rest_permissions.IsAuthenticated])
+def get_ethereum_balance(request):
+    user_id = request.user.id
+    try:
+        user = models.User.objects.get(id=user_id)
+        if not user.ethereum_wallet_address:
+            return response.Response(
+                {"error": "No Ethereum wallet address found."}, status=400
+            )
+
+        web3 = get_web3()
+        
+        balance = web3.eth.get_balance(user.ethereum_wallet_address)
+        eth_balance = web3.from_wei(balance, "ether")
+
+        return response.Response({"ethereum_balance": f"{eth_balance}"}, status=200)
+    except models.User.DoesNotExist:
+        return response.Response({"error": "User not found"}, status=404)
+    except Exception as e:
+        return response.Response({"error": str(e)}, status=500)
